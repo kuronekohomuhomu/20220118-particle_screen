@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>パーティクル・スクリーン</title>
+<script>
+let canvas, context;
+let imageCanvas, imageContext, imageData;
+let particles = new Array();
+let num, mx = -1, my = -1;
+const [width, height] = [500, 500];
+
+// パーティクルクラス
+class Particle {
+    constructor() {
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+        this.r = Math.random() + 0.5;
+        this.speed = Math.random() * 6 + 3;
+    }
+    start(dir) {
+        if ((dir == "up") || (dir == "down")) {
+            this.x = Math.random() * width;
+            if (dir == "up") this.y = height;
+            if (dir == "down") this.y = 0;
+        } else {
+            this.y = Math.random() * height;
+            if (dir == "left") this.x = width;
+            if (dir == "right") this.x = 0;
+        }
+    }
+    move(dir) {
+        // 移動
+        if (dir == "up") {
+            this.x += (Math.random() - 0.5) * ((1-this.y/height) * 5);
+            this.y -= this.speed;
+            if (this.y < 0) this.start(dir);
+        } else if (dir == "down") {
+            this.x += (Math.random() - 0.5) * (this.y/height * 5);
+            this.y += this.speed;
+            if (this.y > height) this.start(dir);
+        } else if (dir == "left") {
+            this.x -= this.speed;
+            this.y += (Math.random() - 0.5) * ((1-this.x/width) * 5);
+            if (this.x < 0) this.start(dir);
+        } else if (dir == "right") {
+            this.x += this.speed;
+            this.y += (Math.random() - 0.5) * (this.x/width * 5);
+            if (this.x > width) this.start(dir);
+        }
+    }
+    draw(color) {
+        // 描画
+        context.fillStyle = color;
+        context.beginPath();
+        context.arc(this.x, this.y, this.r, 0, Math.PI*2);
+        context.fill();
+    }
+}
+
+const init = () => {
+    // キャンバスの取得
+    canvas = document.getElementById("screen");
+    context = canvas.getContext("2d");
+    imageCanvas = document.getElementById("image");
+    imageContext = imageCanvas.getContext("2d");
+    [canvas.width, canvas.height] = [width, height];
+    [imageCanvas.width, imageCanvas.height] = [width, height];
+    imageContext.fillStyle = "#336699";
+    imageContext.fillRect(0, 0, width, height);
+    imageData = imageContext.getImageData(0, 0, width, height);
+    // マウスイベントの登録
+    canvas.addEventListener("mousemove", event => {
+        // マウスカーソルの位置を取得j
+        const canvasRect = canvas.getBoundingClientRect();
+        mx = event.clientX - canvasRect.left;
+        my = event.clientY - canvasRect.top;
+    });
+    canvas.addEventListener("mouseleave", () => [mx, my] = [-1, -1]);
+    // 初期化
+    clearScreen();
+    setParticles();
+    update();
+}
+
+const loadImage = files => {
+    // 画像の読み込み
+    const image = new Image();
+    if (files.length > 0) image.src = URL.createObjectURL(files[0]);
+    image.onload = () => {
+        // 画像を描画
+        let sx, sy, sw, sh;
+        if (image.width > image.height) {
+            [sw, sh] = [image.width, image.width*height/width];
+            [sx, sy] = [0, image.height/2 - sh/2];
+        } else {
+            [sw, sh] = [image.height*width/height, image.height];
+            [sx, sy] = [image.width/2 - sw/2, 0];
+        }
+        imageContext.fillStyle = "#000000";
+        imageContext.fillRect(0, 0, width, height);
+        imageContext.drawImage(image, sx, sy, sw, sh, 0, 0, width, height);
+        imageData = imageContext.getImageData(0, 0, width, height);
+    }
+}
+
+const update = () => {
+    // パーティクルの移動＋描画
+    context.fillStyle = "rgba(0,0,0,0.03)";
+    context.fillRect(0, 0, width, height);
+    let dir;
+    for (const radio of document.getElementsByName("dir")) {
+        if (radio.checked) dir = radio.value;
+    }
+    for (const p of particles) {
+        // 移動
+        p.move(dir);
+        if ((mx >= 0) && (my >= 0)) {
+            // パーティクルをさえぎる
+            if (((p.x-mx)**2+(p.y-my)**2)**0.5 < 20) p.start(dir);
+        }
+        // 画像の色を取得、描画
+        const l = Math.random() * 0.2 + 0.8;
+        const index = (Math.floor(p.y) * width + Math.floor(p.x)) * 4;
+        if ((index >= 0) && (index < imageData.data.length)) {
+            const r = Math.floor(imageData.data[index] * l);
+            const g = Math.floor(imageData.data[index+1] * l);
+            const b = Math.floor(imageData.data[index+2] * l);
+            p.draw(`rgb(${r},${g},${b})`);
+        }
+    }
+    window.requestAnimationFrame(update);
+}
+
+const clearScreen = () => {
+    // スクリーン、選択したファイルのクリア
+    document.getElementById("file").value = "";
+    imageContext.fillStyle = "#336699";
+    imageContext.fillRect(0, 0, width, height);
+    imageData = imageContext.getImageData(0, 0, width, height);
+}
+
+const setParticles = () => {
+    // パーティクルの作成
+    num = document.getElementById("num").value;
+    particles = [];
+    for (let i = 0; i < num; i++) {
+        particles.push(new Particle());
+    }
+}
+</script>
+<style>
+
+</style>
+</head>
+<body onload="init()">
+<p>パーティクル・スクリーン</p>
+<input type="button" value="クリア" onclick="clearScreen()">
+<input type="file" id="file" accept="image/*" onchange="loadImage(this.files)">
+<hr>
+パーティクル数：<input type="number" id="num" value="3000" min="0" step="100"
+onchange="setParticles()">
+<input type="radio" name="dir" id="up" checked>↑
+<input type="radio" name="dir" id="down">↓
+<input type="radio" name="dir" id="left">←
+<input type="radio" name="dir" id="right">→
+<hr>
+<canvas id="screen"></canvas>
+<canvas id="image"></canvas>
+</body>
+</html>
